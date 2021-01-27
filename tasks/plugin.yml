@@ -1,0 +1,65 @@
+
+# wp_cli_verify_installs check if site is 200 before install and revert install 
+# if site is 500 after install 
+# plugin is-active hello
+- name: Check site status
+  uri:
+    url: "{{ wp_url }}"
+    method: GET
+    follow_redirects: safe
+  register: site_http
+
+- name: Install WordPress plugin from mapping value
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - plugin
+      - install
+      - '{{ plugin_slug }}'
+      - "--path={{ wp_path }}"
+      - '--version={{ plugin_version }}'
+      - '--activate'
+  when: 
+    - plugin is mapping
+    - plugin_slug is string
+  vars:
+    plugin_slug: "{{ plugin.slug | default(false) }}"
+    plugin_version: "{{ plugin.version | default('latest-stable') }}"
+
+- name: Install WordPress plugin from string value
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - plugin
+      - install
+      - '{{ plugin_slug }}'
+      - "--path={{ wp_path }}"
+      - '--version={{ plugin_version }}'
+      - '--activate'
+  when: 
+    - plugin is string
+    - plugin_slug is string
+  vars:
+    plugin_slug: "{{ plugin.split(':') | first | default(false) }}"
+    plugin_version: "{{ plugin.split(':')[1] | default('latest-stable') }}"
+
+
+- name: Check site status post plugin
+  uri:
+    url: "{{ wp_url }}"
+    method: GET
+    follow_redirects: safe
+  register: site_http
+
+- name: Deactivate WordPress plugin if site failed
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - plugin
+      - deactivate
+      - '{{ plugin_slug }}'
+      - "--path={{ wp_path }}"
+  when: 
+    - site_http.status > 300
+  vars:
+    plugin_slug: "{{ plugin.split(':')[0] if plugin is string else plugin.slug }}"

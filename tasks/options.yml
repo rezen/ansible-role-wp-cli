@@ -1,0 +1,42 @@
+- name: Set detailed options for a WordPress site
+  ignore_errors: yes
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - option
+      - update
+      - '{{ option_key }}'
+      - "{{ option.value }}"
+      - --autoload={{ autoload }}
+      - "--path={{ wp_path }}"
+  vars:
+    autoload: "{{ 'yes' if option.get('autoload') in ['yes', true, 'y'] else 'no' }}"
+  when: 
+    - option is mapping
+
+- name: Set basic options for a WordPress site
+  ignore_errors: yes
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - option
+      - update
+      - '{{ option_key }}'
+      - "{{ option }}"
+      - "--path={{ wp_path }}"
+  when: 
+    - option is not mapping
+
+- name: Get list of options
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - option
+      - list
+      - --exclude='_*'
+      - --autoload=on
+      - --format=json
+      - --no-transients
+      - --unserialize
+      - --path={{ wp_path }}
+  register: wp_options 

@@ -1,0 +1,21 @@
+---
+wp_cli_verify_urls:
+  - /
+  - /wp-login.php
+wp_cli_snapshots: /app
+wp_cli_verify_installs: true
+wp_cli_install: true
+wp_cli_params:
+  user: admin
+  color: false
+  disabled_commands: []
+  config create:
+    dbuser: root
+    dbpass: 
+    extra-php: |
+        define( 'WP_DEBUG', false );
+        define( 'WP_POST_REVISIONS', 3 );
+
+wp_cli_bin: "/usr/local/bin/wp"
+wp_cli_packages: []
+wp_cli_sites: []

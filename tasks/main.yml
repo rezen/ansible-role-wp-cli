@@ -1,0 +1,6 @@
+---
+- include_tasks: install.yml
+- include_tasks: site.yml
+  loop: "{{ wp_cli_sites }}"
+  vars:
+    site: "{{ item }}"

@@ -1,0 +1,26 @@
+---
+# tasks file for wp-cli
+- name: Check if wp-cli exists
+  stat: 
+    path: "{{ wp_cli_bin }}"
+  register: wp_cli_exist
+  tags:
+    - always
+
+- name: Updating wp-cli
+  shell: "{{ wp_cli_bin }} cli update --yes"
+  when: wp_cli_exist.stat.exists
+  tags:
+    - wp
+    - update
+
+- name: Download wp-cli
+  get_url:
+    url: "https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar"
+    dest: "{{ wp_cli_bin }}"
+    force_basic_auth: yes
+    mode: 0755
+  when: not wp_cli_exist.stat.exists
+  tags:
+    - wp
+    - install

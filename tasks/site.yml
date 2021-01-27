@@ -1,0 +1,161 @@
+# Handle site url changing
+- name: Get stats of a WordPress install
+  ansible.builtin.stat:
+    path: "{{ site.path }}"
+  register: wp_site_path
+
+- name: Create a directory if it does not exist
+  when: wp_site_path.stat.exists == false
+  ansible.builtin.file:
+    path: "{{ site.path }}"
+    state: directory
+    mode: '0755'
+    owner: www-data
+    group: www-data
+
+- name: Get stats of a WordPress install
+  ansible.builtin.stat:
+    path: "{{ site.path }}"
+  register: wp_site_path
+
+- name: Ensure backups directory exists
+  ansible.builtin.file:
+    path: "{{ wp_cli_snapshots }}{{ site.path | hash('md5')  }}/"
+    state: directory
+    mode: '0755'
+    owner: www-data
+    group: www-data
+
+- block:
+  - name: Check if WordPress is installed
+    command: 
+      argv:
+        - "{{ wp_cli_bin }}"
+        - core
+        - is-installed
+        - "--path={{ site.path }}"
+    register: wp_is_installed
+    ignore_errors: yes
+    when: 
+      - site is mapping
+  
+  - name: Check if already downloaded
+    ansible.builtin.stat:
+      path: "{{ site.path }}/wp-includes/version.php"
+    register: wp_files
+  
+
+  - name: Download WordPress
+    command: 
+      argv:
+        - "{{ wp_cli_bin }}"
+        - core
+        - download
+        - "--path={{ site.path }}"
+    register: wp_downloaded
+    when: 
+      - wp_files.stat.exists == false
+      - wp_is_installed.rc != 0
+  
+  - name: Generate wp-config
+    command: 
+      argv:
+        - "{{ wp_cli_bin }}"
+        - config
+        - create
+        - "--path={{ site.path }}"
+        - "--dbname={{ site.db.name }}" 
+        - "--dbuser={{ site.db.user }}" 
+        - "--dbpass={{ site.db.pass }}"
+        - "--dbhost={{ site.db.host | default('localhost') }}"
+        - "--force"
+    register: wp_downloaded
+    when: 
+      - wp_is_installed.rc != 0
+      - no_config is not defined # If you are generating your own via a template
+
+  - name: Install WordPress
+    command: 
+      argv:
+        - "{{ wp_cli_bin }}"
+        - core
+        - install
+        - "--path={{ site.path }}"
+        - "--url={{ site.url }}"
+        - "--title={{ site.title | default('Your WordPress site') }}"
+        - "--admin_user={{ site.admin.user }}"
+        - "--admin_email={{ site.admin.email }}"
+    register: wp_install
+    when: 
+      - wp_is_installed.rc != 0
+
+  - name: Get current config
+    command: 
+      argv:
+        - "{{ wp_cli_bin }}"
+        - config
+        - get
+        - "--path={{ site.path }}"
+        - "--format=json"
+    register: wp_config
+
+  - name: Snapshot db
+    command: 
+      argv:
+        - "{{ wp_cli_bin }}"
+        - db
+        - export
+        - "{{ wp_cli_snapshots }}/{{ site.path | hash('md5')  }}/{{ ansible_date_time.epoch }}.sql"
+        - --path={{ site.path }}
+        - --porcelain
+    when: 
+      - wp_is_installed.rc == 0
+
+  - name: Install WordPress plugins for a site
+    include_tasks: plugin.yml
+    when: 
+      - site is mapping
+    vars:
+      wp_url: "{{ site.url }}"
+      wp_path: "{{ site.path }}" 
+      plugin: "{{ x }}"
+    loop: "{{ site.plugins | default([]) }}"
+    loop_control:
+      loop_var: x
+
+  - name: Register installed plugins
+    command: 
+      argv:
+        - "{{ wp_cli_bin }}"
+        - plugin
+        - list
+        - "--path={{ site.path }}"
+        - "--json"
+    register: wp_installed_plugins
+
+
+  - name: Set options
+    include_tasks: options.yml
+    when: 
+      - site is mapping
+    vars:
+      wp_path: "{{ site.path }}" 
+      option: "{{ x.value }}"
+      option_key: "{{ x.key }}"
+    loop: "{{ site.options | default({}) | dict2items }}"
+    loop_control:
+      loop_var: x
+
+  - name: Setup users
+    include_tasks: user.yml
+    when: 
+      - site is mapping
+    vars:
+      wp_path: "{{ site.path }}" 
+      user: "{{ x }}"
+    loop: "{{ site.users | default([]) }}"
+    loop_control:
+      loop_var: x
+
+  become: yes
+  become_user: "{{ wp_site_path.stat.pw_name }}"

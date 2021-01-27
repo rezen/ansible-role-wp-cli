@@ -1,0 +1,11 @@
+
+# name|git|path|zip
+- name: Add wp-cli packages
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - package 
+      - install 
+      - "{{ item }}"
+  register: wp_cli_packages
+  loop: "{{  wp_cli_packages  }}"

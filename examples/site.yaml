@@ -1,0 +1,56 @@
+---
+- hosts: '127.0.0.1'
+  connection: local
+  roles:
+    - 'geerlingguy.mysql'
+    - 'roles/wp-ansible'
+    
+  vars:
+    mysql_root_password: wordpress
+    mysql_databases:
+      - name: wordpress
+    mysql_users:
+      - name: wordpress
+        host: "%"
+        password: wordpress
+        priv: "wordpress.*:ALL"
+        
+    wp_cli_install: true
+    wp_cli_bin: "/usr/local/bin/wp"
+    wp_cli_packages: []
+    wp_cli_sites:
+      - path: /var/www/test.com/
+        url: http://test.com
+        db: 
+          name: wordpress
+          user: wordpress
+          pass: wordpress
+          
+        admin:
+          user: test@localhost
+          email: test@localhost
+        
+        plugins:
+          - slug: contact-form-7
+            version: latest-stable
+          - woocommerce
+        
+        options:
+          my_option: "hey_now"
+          another_one:
+            value: [1,2,3]
+            autoload: true
+      
+        users:
+          - email: user@localhost
+            login: user@localhost
+            role: administrator
+            meta: {}  
+
+        terms:
+          taxonomy:
+            - A
+            - name: X
+              slug: x
+              parent: y
+              children: [A, B, C, D]

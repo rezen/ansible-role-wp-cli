@@ -1,0 +1,68 @@
+---
+- name: Get user
+  ignore_errors: yes
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - user
+      - get
+      - "{{ user.login | default(user.email) }}"
+      - --fields=ID,user_login,user_email,roles
+      - --format=json
+      - "--path={{ wp_path }}"
+  register: wp_user
+
+- name: Create user
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - user
+      - create
+      - "{{ user.login | default(user.email) }}"
+      - "{{ user.email }}"
+      - "--path={{ wp_path }}"
+      - --role={{ user.role | default('subscriber') }}
+      - --send-email
+      - --porcelain
+  register: wp_user_id
+  when:
+    - wp_user.rc != 0
+
+- name: Create user_data dictionary
+  set_fact:
+    user_data: "{{ user_data | default({}) | combine({item.key|replace('user_','') : item.value}) }}"
+  loop: "{{ wp_user.stdout | from_json |  dict2items  }}"
+
+- name: Fix role in dictionary
+  set_fact:
+    changed: "{{ {} }}"
+    user_data: "{% set copy=user_data.copy() %}{% set roles=copy.pop('roles') %}{{ copy|combine({'role': roles }) }}"
+
+
+- name: Set changed variables
+  set_fact:
+    changed: "{{ changed | default({}) | combine({item: user[item]}) }}"
+  loop:
+    - "role"
+    - "display_name"
+    - "email"
+  when:
+    - user_data.get(item) != user.get(item)
+
+- name: Update user
+  command: 
+    argv:
+      - "{{ wp_cli_bin }}"
+      - user
+      - update
+      - "{{ user_id }}"
+      - --user_email={{ user.email }}
+      - --role={{ user.role | default('subscriber') }}
+      - --display_name={{ user.display_name | default(user.email) }}
+      - --path={{ wp_path }}
+      - --test={{ changed }}
+  when:
+    - wp_user.rc == 0
+    - changed.keys()|length > 0
+  vars: 
+    user_id: "{{  user_data.ID }}"
